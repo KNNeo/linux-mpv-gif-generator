@@ -2,8 +2,6 @@
 -- Adapted from https://github.com/the-honey/mpv-gif-generator
 -- Usage: "g" to set start frame, "G" to set end frame, "Ctrl+g" to create.
 
-require 'mp.options'
-
 start_time = -1
 end_time = -1
 
@@ -17,25 +15,24 @@ function make_gif()
 
     mp.osd_message("Creating GIF.")
 
-    -- shell escape
-    function esc(s)
-        return string.gsub(s, '"', '"\\""')
-    end
-
-    local pathname = mp.get_property("path", "")
-
+    local video_path = mp.get_property("path")
+    local video_dir_path = video_path:gsub("(.*)/.*$","%1")
 
     local position = start_time_l
     local duration = end_time_l - start_time_l
 
     -- then, make the gif
-    local filename = mp.get_property("filename/no-ext")
-    local handle = io.popen("kdialog --getsavefilename | tr -d '\n'")
-    local file_path = handle:read("*a")
+    local kdialogcommand = string.format("kdialog --getsavefilename %q '*.gif' | tr -d '\n'", video_dir_path)
+    local handle = io.popen(kdialogcommand)
+    local gif_path = handle:read("*a")
     handle:close()
 
-    args = string.format('ffmpeg -ss %s -t %s -i "%s" -vf fps=5,scale=w=720:h=-1 -loop 0 -y "%s"', position, duration,
-        esc(pathname), esc(file_path))
+    if(gif_path:sub(-string.len(".gif")) ~= ".gif")
+    then
+        gif_path = gif_path .. ".gif"
+    end
+
+    args = string.format('ffmpeg -ss %s -t %s -i %q -vf fps=5,scale=w=720:h=-1 -loop 0 -y %q', position, duration, video_path, gif_path)
     -- mp.osd_message("args: " .. args)
     os.execute(args)
 
@@ -52,8 +49,8 @@ function set_gif_end()
 end
 
 function file_exists(name)
-    local f = io.open(name, "r")
-    if f ~= nil then io.close(f) return true else return false end
+    local f=io.open(name,"r")
+    if f~=nil then io.close(f) return true else return false end
 end
 
 mp.add_key_binding("g", "set_gif_start", set_gif_start)
