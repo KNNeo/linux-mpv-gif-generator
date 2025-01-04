@@ -1,9 +1,10 @@
--- Original by Ruin0x11
+-- Original by Ruin0x11 & blueray453
 -- Adapted from https://github.com/the-honey/mpv-gif-generator
--- Usage: "g" to set start frame, "G" to set end frame, "Ctrl+g" to create.
+-- Usage: "[" to set start frame, "]" to set end frame, "g" for changing fps, "Ctrl+g" to create.
 
 start_time = -1
 end_time = -1
+fps = 8
 
 function make_gif()
     local start_time_l = start_time
@@ -13,7 +14,7 @@ function make_gif()
         return
     end
 
-    mp.osd_message("Creating GIF.")
+    mp.osd_message("Creating GIF...")
 
     local video_path = mp.get_property("path")
     local video_dir_path = video_path:gsub("(.*)/.*$","%1")
@@ -31,28 +32,41 @@ function make_gif()
     then
         gif_path = gif_path .. ".gif"
     end
+    
+    local palette_path = video_dir_path .. "/palette.png"
 
-    args = string.format('ffmpeg -ss %s -t %s -i %q -vf fps=5,scale=w=720:h=-1 -loop 0 -y %q', position, duration, video_path, gif_path)
-    -- mp.osd_message("args: " .. args)
+    args = string.format(
+	'ffmpeg -ss %s -t %s -i %q -vf fps=%s,scale=w=320:h=-1:flags=lanczos,palettegen -y %q && ' ..
+	'ffmpeg -ss %s -t %s -i %q -i %q -lavfi "fps=%s,scale=w=320:h=-1:flags=lanczos [x]; [x][1:v] paletteuse" -loop 0 -y %q && ' ..
+	'rm -f %q',
+	position, duration, video_path, fps, palette_path, -- palette generation
+	position, duration, video_path, palette_path, fps, gif_path, -- GIF creation
+	palette_path -- remove palette file
+    )
     os.execute(args)
-
+    mp.osd_message("Done. ")
 end
 
 function set_gif_start()
     start_time = mp.get_property_number("time-pos", -1)
-    mp.osd_message("GIF Start: " .. start_time)
+    mp.osd_message("GIF start: " .. start_time)
 end
 
 function set_gif_end()
     end_time = mp.get_property_number("time-pos", -1)
-    mp.osd_message("GIF End: " .. end_time)
+    mp.osd_message("GIF end: " .. end_time)
 end
 
-function file_exists(name)
-    local f=io.open(name,"r")
-    if f~=nil then io.close(f) return true else return false end
+function toggle_gif_fps()
+    if fps == 8 then
+		fps = 10
+	else
+		fps = 8
+	end
+    mp.osd_message("GIF frames per second: " .. fps)
 end
 
-mp.add_key_binding("g", "set_gif_start", set_gif_start)
-mp.add_key_binding("G", "set_gif_end", set_gif_end)
+mp.add_key_binding("g", "toggle_gif_fps", toggle_gif_fps)
+mp.add_key_binding("[", "set_gif_start", set_gif_start)
+mp.add_key_binding("]", "set_gif_end", set_gif_end)
 mp.add_key_binding("Ctrl+g", "make_gif", make_gif)
